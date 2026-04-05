@@ -27,14 +27,14 @@ type DotConfig struct {
 
 	// Top-level shorthand (no platform scope = global)
 	Files   map[string]string `yaml:"files,omitempty"`
-	Links   map[string]string `yaml:"links,omitempty"` // rotz compat alias
+	Links   map[string]string `yaml:"links,omitempty"` // punch compat alias
 	Install any               `yaml:"installs,omitempty"`
 	Depends []string          `yaml:"depends,omitempty"`
 }
 
 type PlatformConfig struct {
 	Files   map[string]string `yaml:"files,omitempty"`
-	Links   map[string]string `yaml:"links,omitempty"` // rotz compat alias
+	Links   map[string]string `yaml:"links,omitempty"` // punch compat alias
 	Install any               `yaml:"installs,omitempty"`
 	Depends []string          `yaml:"depends,omitempty"`
 }
@@ -153,11 +153,11 @@ func lockfilePath() string {
 }
 
 func stateDir() string {
-	if dir := os.Getenv("ROTZ_STATE_DIR"); dir != "" {
+	if dir := os.Getenv("PUNCH_STATE_DIR"); dir != "" {
 		return dir
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "state", "rotz")
+	return filepath.Join(home, ".local", "state", "punch")
 }
 
 func loadLockfile() *Lockfile {
@@ -389,7 +389,7 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 			srcAbs := filepath.Join(mod.Dir, src)
 			dstAbs := expandHome(dst)
 
-			// Resolve symlinks at the target -- if it's a symlink (from old rotz),
+			// Resolve symlinks at the target -- if it's a symlink (from old symlink-based installs),
 			// we want to replace it with a copy. No conflict check needed.
 			isSymlink := false
 			if info, err := os.Lstat(dstAbs); err == nil && info.Mode()&os.ModeSymlink != 0 {
@@ -434,7 +434,7 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 				if dstHash != "" && !force {
 					if locked, ok := lf.Files[dstAbs]; ok {
 						if dstHash != locked.TargetHash && dstHash != locked.SourceHash {
-							fmt.Printf("  \033[31m!\033[0m %s: target modified outside rotz (use --force to overwrite)\n", dst)
+							fmt.Printf("  \033[31m!\033[0m %s: target modified outside punch (use --force to overwrite)\n", dst)
 							conflicts++
 							continue
 						}
@@ -513,7 +513,7 @@ func cmdInstall(dotfilesDir string) error {
 			if strings.HasPrefix(dep, "../") || strings.HasPrefix(dep, "./") {
 				resolved = filepath.Clean(filepath.Join(filepath.Dir(name), dep))
 			}
-			// Strip leading / if present (rotz format uses /terminal/zsh)
+			// Strip leading / if present (dot.yaml format uses /terminal/zsh)
 			resolved = strings.TrimPrefix(resolved, "/")
 			visit(resolved)
 		}
@@ -599,7 +599,7 @@ func cmdStatus(dotfilesDir string) error {
 				continue
 			}
 
-			// Check if target is a symlink (legacy rotz)
+			// Check if target is a symlink (legacy symlink)
 			if info, err := os.Lstat(dstAbs); err == nil && info.Mode()&os.ModeSymlink != 0 {
 				fmt.Printf("  \033[33m↻\033[0m %s: symlink (run link to convert)\n", dst)
 				symlinks++
@@ -626,7 +626,7 @@ func cmdStatus(dotfilesDir string) error {
 				continue
 			}
 
-			// Target modified outside rotz
+			// Target modified outside punch
 			if inLock && dstHash != locked.TargetHash {
 				fmt.Printf("  \033[33m✎\033[0m %s: target modified\n", dst)
 				modified++
@@ -709,11 +709,11 @@ func cmdClean() error {
 
 func resolveDotfilesDir() string {
 	// Explicit flag
-	if dir := os.Getenv("ROTZ_DOTFILES"); dir != "" {
+	if dir := os.Getenv("PUNCH_DOTFILES"); dir != "" {
 		return dir
 	}
 
-	// Walk up from cwd looking for a rotz dotfiles root
+	// Walk up from cwd looking for a punch dotfiles root
 	// (has at least one dot.yaml somewhere)
 	cwd, _ := os.Getwd()
 	dir := cwd
@@ -730,9 +730,9 @@ func resolveDotfilesDir() string {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `rotz -- copy-based dotfile manager with provenance tracking
+	fmt.Fprintf(os.Stderr, `punch -- copy-based dotfile manager with provenance tracking
 
-Usage: rotz [flags] <command>
+Usage: punch [flags] <command>
 
 Commands:
   link [--force] [--dry-run]   Copy dotfiles to their targets
@@ -745,7 +745,7 @@ Flags:
   --dotfiles <path>   Dotfiles directory (default: auto-detect from cwd)
 
 Environment:
-  ROTZ_DOTFILES       Override dotfiles directory
+  PUNCH_DOTFILES       Override dotfiles directory
 `)
 }
 
@@ -804,7 +804,7 @@ func main() {
 		err = cmdStatus(dotfilesDir)
 	case "diff":
 		if len(positional) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: rotz diff <target>")
+			fmt.Fprintln(os.Stderr, "usage: punch diff <target>")
 			os.Exit(1)
 		}
 		err = cmdDiff(dotfilesDir, positional[1])

@@ -171,7 +171,7 @@ func TestLinkCopiesFiles(t *testing.T) {
 
 	// Override lockfile path
 	stateOverride := t.TempDir()
-	t.Setenv("ROTZ_STATE_DIR", stateOverride)
+	t.Setenv("PUNCH_STATE_DIR", stateOverride)
 
 	writeFile(t, filepath.Join(dotfiles, "dev", "git", ".gitconfig"), "[user]\n\tname = test\n")
 	writeDotYaml(t, filepath.Join(dotfiles, "dev", "git"), `
@@ -203,7 +203,7 @@ global:
 
 func TestLinkReplacesSymlinks(t *testing.T) {
 	dotfiles, home := setupTestDotfiles(t)
-	t.Setenv("ROTZ_STATE_DIR", t.TempDir())
+	t.Setenv("PUNCH_STATE_DIR", t.TempDir())
 
 	srcContent := "source content\n"
 	writeFile(t, filepath.Join(dotfiles, "mod", "file.txt"), srcContent)
@@ -212,7 +212,7 @@ files:
   file.txt: ~/.config/file.txt
 `)
 
-	// Create a symlink at the target (simulating old rotz)
+	// Create a symlink at the target (simulating old symlink-based install)
 	target := filepath.Join(home, ".config", "file.txt")
 	os.MkdirAll(filepath.Dir(target), 0o755)
 	tmpFile := filepath.Join(t.TempDir(), "old-target")
@@ -240,7 +240,7 @@ files:
 
 func TestLinkConflictDetection(t *testing.T) {
 	dotfiles, home := setupTestDotfiles(t)
-	t.Setenv("ROTZ_STATE_DIR", t.TempDir())
+	t.Setenv("PUNCH_STATE_DIR", t.TempDir())
 
 	writeFile(t, filepath.Join(dotfiles, "mod", "config"), "from source\n")
 	writeDotYaml(t, filepath.Join(dotfiles, "mod"), `
@@ -266,7 +266,7 @@ files:
 
 func TestLinkForceOverwritesConflict(t *testing.T) {
 	dotfiles, home := setupTestDotfiles(t)
-	t.Setenv("ROTZ_STATE_DIR", t.TempDir())
+	t.Setenv("PUNCH_STATE_DIR", t.TempDir())
 
 	writeFile(t, filepath.Join(dotfiles, "mod", "config"), "from source\n")
 	writeDotYaml(t, filepath.Join(dotfiles, "mod"), `
@@ -290,7 +290,7 @@ files:
 
 func TestLinkSkipsUpToDate(t *testing.T) {
 	dotfiles, home := setupTestDotfiles(t)
-	t.Setenv("ROTZ_STATE_DIR", t.TempDir())
+	t.Setenv("PUNCH_STATE_DIR", t.TempDir())
 
 	content := "same content\n"
 	writeFile(t, filepath.Join(dotfiles, "mod", "file"), content)
@@ -312,7 +312,7 @@ files:
 func TestLinkWritesLockfile(t *testing.T) {
 	dotfiles, home := setupTestDotfiles(t)
 	stateDir := t.TempDir()
-	t.Setenv("ROTZ_STATE_DIR", stateDir)
+	t.Setenv("PUNCH_STATE_DIR", stateDir)
 
 	writeFile(t, filepath.Join(dotfiles, "mod", "config"), "content\n")
 	writeDotYaml(t, filepath.Join(dotfiles, "mod"), `
@@ -357,7 +357,7 @@ files:
 
 func TestLinkCopiesDirectories(t *testing.T) {
 	dotfiles, home := setupTestDotfiles(t)
-	t.Setenv("ROTZ_STATE_DIR", t.TempDir())
+	t.Setenv("PUNCH_STATE_DIR", t.TempDir())
 
 	// Create a skill directory with multiple files
 	skillDir := filepath.Join(dotfiles, "ai", "skills", "my-skill")
@@ -396,7 +396,7 @@ files:
 
 func TestDryRunDoesNotMutate(t *testing.T) {
 	dotfiles, home := setupTestDotfiles(t)
-	t.Setenv("ROTZ_STATE_DIR", t.TempDir())
+	t.Setenv("PUNCH_STATE_DIR", t.TempDir())
 
 	writeFile(t, filepath.Join(dotfiles, "mod", "file"), "content\n")
 	writeDotYaml(t, filepath.Join(dotfiles, "mod"), `

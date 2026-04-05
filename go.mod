@@ -1,4 +1,4 @@
-module github.com/choam-io/rotz
+module github.com/choam-io/punch
 
 go 1.25.7
 
