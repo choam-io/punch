@@ -25,11 +25,43 @@ type DotConfig struct {
 	Darwin *PlatformConfig `yaml:"darwin,omitempty"`
 	Linux  *PlatformConfig `yaml:"linux,omitempty"`
 
+	// Union platform keys (e.g. "linux|darwin") -- parsed in UnmarshalYAML
+	UnionPlatform *PlatformConfig `yaml:"-"`
+
 	// Top-level shorthand (no platform scope = global)
 	Files   map[string]string `yaml:"files,omitempty"`
-	Links   map[string]string `yaml:"links,omitempty"` // punch compat alias
+	Links   map[string]string `yaml:"links,omitempty"` // rotz compat alias
 	Install any               `yaml:"installs,omitempty"`
 	Depends []string          `yaml:"depends,omitempty"`
+}
+
+func (d *DotConfig) UnmarshalYAML(value *yaml.Node) error {
+	// Decode known fields with a type alias to avoid recursion
+	type plain DotConfig
+	if err := value.Decode((*plain)(d)); err != nil {
+		return err
+	}
+
+	// Scan for union platform keys like "linux|darwin" or "darwin|linux"
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(value.Content); i += 2 {
+			key := value.Content[i].Value
+			if strings.Contains(key, "|") {
+				parts := strings.Split(key, "|")
+				for _, p := range parts {
+					if strings.TrimSpace(p) == runtime.GOOS {
+						var pc PlatformConfig
+						if err := value.Content[i+1].Decode(&pc); err != nil {
+							return err
+						}
+						d.UnionPlatform = &pc
+						break
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 type PlatformConfig struct {
@@ -71,6 +103,16 @@ func (d *DotConfig) ResolvedFiles() map[string]string {
 		}
 	}
 
+	// Union platform scope (e.g. "linux|darwin")
+	if d.UnionPlatform != nil {
+		for k, v := range d.UnionPlatform.Files {
+			merged[k] = v
+		}
+		for k, v := range d.UnionPlatform.Links {
+			merged[k] = v
+		}
+	}
+
 	return merged
 }
 
@@ -78,6 +120,12 @@ func (d *DotConfig) ResolvedInstall() string {
 	// Platform-specific install takes priority
 	if pc := d.platformConfig(); pc != nil {
 		if cmd := extractInstallCmd(pc.Install); cmd != "" {
+			return cmd
+		}
+	}
+	// Union platform
+	if d.UnionPlatform != nil {
+		if cmd := extractInstallCmd(d.UnionPlatform.Install); cmd != "" {
 			return cmd
 		}
 	}
@@ -97,6 +145,9 @@ func (d *DotConfig) ResolvedDepends() []string {
 	deps = append(deps, d.Depends...)
 	if pc := d.platformConfig(); pc != nil {
 		deps = append(deps, pc.Depends...)
+	}
+	if d.UnionPlatform != nil {
+		deps = append(deps, d.UnionPlatform.Depends...)
 	}
 	return deps
 }
