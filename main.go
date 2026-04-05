@@ -436,6 +436,14 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 			continue
 		}
 
+		headerShown := false
+		showHeader := func() {
+			if !headerShown {
+				fmt.Printf("\n\033[1mLinking \033[38;5;4m/%s\033[39m\033[0m\n\n", mod.Name)
+				headerShown = true
+			}
+		}
+
 		for src, dst := range files {
 			srcAbs := filepath.Join(mod.Dir, src)
 			dstAbs := expandHome(dst)
@@ -448,19 +456,20 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 				if !dryRun {
 					os.Remove(dstAbs)
 				}
-				fmt.Printf("  \033[33m↻\033[0m %s (replacing symlink)\n", dst)
 			}
 
 			// Check if source exists (file or dir)
 			srcInfo, srcErr := os.Stat(srcAbs)
 			if srcErr != nil {
-				fmt.Fprintf(os.Stderr, "  \033[31m✗\033[0m %s: source not found: %s\n", mod.Name, src)
+				showHeader()
+				fmt.Fprintf(os.Stderr, "  \033[31m✗ %s\033[0m  source not found\n", src)
 				continue
 			}
 
 			srcHash := hashFile(srcAbs)
 			if srcHash == "" {
-				fmt.Fprintf(os.Stderr, "  \033[31m✗\033[0m %s: cannot hash source: %s\n", mod.Name, src)
+				showHeader()
+				fmt.Fprintf(os.Stderr, "  \033[31m✗ %s\033[0m  cannot hash source\n", src)
 				continue
 			}
 
@@ -485,13 +494,14 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 				if dstHash != "" && !force {
 					if locked, ok := lf.Files[dstAbs]; ok {
 						if dstHash != locked.TargetHash && dstHash != locked.SourceHash {
-							fmt.Printf("  \033[31m!\033[0m %s: target modified outside punch (use --force to overwrite)\n", dst)
+							showHeader()
+							fmt.Printf("  \033[33m! %s\033[0m  modified outside punch (--force to overwrite)\n", dst)
 							conflicts++
 							continue
 						}
 					} else {
-						// Not in lockfile, target exists -- conflict unless force
-						fmt.Printf("  \033[31m!\033[0m %s: target exists, not in lockfile (use --force to overwrite)\n", dst)
+						showHeader()
+						fmt.Printf("  \033[33m! %s\033[0m  exists, not in lockfile (--force to overwrite)\n", dst)
 						conflicts++
 						continue
 					}
@@ -499,13 +509,19 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 			}
 
 			if dryRun {
-				fmt.Printf("  \033[34m→\033[0m %s → %s (dry run)\n", src, dst)
+				showHeader()
+				if isSymlink {
+					fmt.Printf("  \033[33m↻\033[0m \033[38;5;2m%s\033[0m → \033[38;5;2m%s\033[0m  \033[2m(symlink → copy)\033[0m\n", src, dst)
+				} else {
+					fmt.Printf("  \033[38;5;2m%s\033[0m → \033[38;5;2m%s\033[0m\n", src, dst)
+				}
 				copied++
 				continue
 			}
 
 			if err := copyFile(srcAbs, dstAbs); err != nil {
-				fmt.Fprintf(os.Stderr, "  \033[31m✗\033[0m %s: %v\n", dst, err)
+				showHeader()
+				fmt.Fprintf(os.Stderr, "  \033[31m✗ %s\033[0m  %v\n", dst, err)
 				continue
 			}
 
@@ -518,7 +534,12 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 				Module:      mod.Name,
 			}
 
-			fmt.Printf("  \033[32m✓\033[0m %s → %s\n", src, dst)
+			showHeader()
+			if isSymlink {
+				fmt.Printf("  \033[33m↻\033[0m \033[38;5;2m%s\033[0m → \033[38;5;2m%s\033[0m  \033[2m(symlink → copy)\033[0m\n", src, dst)
+			} else {
+				fmt.Printf("  \033[38;5;2m%s\033[0m → \033[38;5;2m%s\033[0m\n", src, dst)
+			}
 			copied++
 		}
 	}
@@ -588,7 +609,7 @@ func cmdInstall(dotfilesDir string) error {
 			continue
 		}
 
-		fmt.Printf("\033[34m=>\033[0m %s\n", name)
+		fmt.Printf("\n\033[1mInstalling \033[38;5;12m/%s\033[39m\033[0m\n\n", name)
 
 		// Set DOTFILES_DIR for install scripts that reference it
 		env := os.Environ()
@@ -602,9 +623,8 @@ func cmdInstall(dotfilesDir string) error {
 		proc.Env = env
 
 		if err := proc.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "  \033[31m✗\033[0m %s: %v\n", name, err)
+			fmt.Fprintf(os.Stderr, "  \033[31m✗\033[0m %v\n", err)
 		} else {
-			fmt.Printf("  \033[32m✓\033[0m %s\n", name)
 			installed++
 		}
 	}
