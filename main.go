@@ -390,8 +390,10 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 			dstAbs := expandHome(dst)
 
 			// Resolve symlinks at the target -- if it's a symlink (from old rotz),
-			// we want to replace it with a copy
+			// we want to replace it with a copy. No conflict check needed.
+			isSymlink := false
 			if info, err := os.Lstat(dstAbs); err == nil && info.Mode()&os.ModeSymlink != 0 {
+				isSymlink = true
 				if !dryRun {
 					os.Remove(dstAbs)
 				}
@@ -418,27 +420,30 @@ func cmdLink(dotfilesDir string, force bool, dryRun bool) error {
 				}
 			}
 
-			dstHash := hashFile(dstAbs)
+			// Skip hash comparison for symlinks -- they're always replaced
+			if !isSymlink {
+				dstHash := hashFile(dstAbs)
 
-			// Check if target is already up to date
-			if dstHash == srcHash {
-				skipped++
-				continue
-			}
+				// Check if target is already up to date
+				if dstHash == srcHash {
+					skipped++
+					continue
+				}
 
-			// Check for conflict: target exists and differs from both source and last-known
-			if dstHash != "" && !force {
-				if locked, ok := lf.Files[dstAbs]; ok {
-					if dstHash != locked.TargetHash && dstHash != locked.SourceHash {
-						fmt.Printf("  \033[31m!\033[0m %s: target modified outside rotz (use --force to overwrite)\n", dst)
+				// Check for conflict: target exists and differs from both source and last-known
+				if dstHash != "" && !force {
+					if locked, ok := lf.Files[dstAbs]; ok {
+						if dstHash != locked.TargetHash && dstHash != locked.SourceHash {
+							fmt.Printf("  \033[31m!\033[0m %s: target modified outside rotz (use --force to overwrite)\n", dst)
+							conflicts++
+							continue
+						}
+					} else {
+						// Not in lockfile, target exists -- conflict unless force
+						fmt.Printf("  \033[31m!\033[0m %s: target exists, not in lockfile (use --force to overwrite)\n", dst)
 						conflicts++
 						continue
 					}
-				} else {
-					// Not in lockfile, target exists -- conflict unless force
-					fmt.Printf("  \033[31m!\033[0m %s: target exists, not in lockfile (use --force to overwrite)\n", dst)
-					conflicts++
-					continue
 				}
 			}
 
