@@ -153,6 +153,9 @@ func lockfilePath() string {
 }
 
 func stateDir() string {
+	if dir := os.Getenv("ROTZ_STATE_DIR"); dir != "" {
+		return dir
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "state", "rotz")
 }
