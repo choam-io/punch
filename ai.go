@@ -597,7 +597,7 @@ func cmdAIPin(dotfilesDir string, servers []string) error {
 
 				var pkg, version string
 				if m := npmPkgRe.FindStringSubmatch(arg); m != nil {
-					pkg, version = m[1], m[3]
+					pkg, version = m[1], m[2]
 				} else if npmPkgNoVersionRe.MatchString(arg) {
 					pkg, version = arg, "latest"
 				} else {
