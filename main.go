@@ -800,6 +800,32 @@ func resolveDotfilesDir() string {
 	return filepath.Join(home, "ghq", "github.com", "nodeselector", "ns-dotfiles")
 }
 
+// resolveAIDir picks the best root for `punch ai` commands.
+// If cwd contains MCP configs or skill directories, use cwd.
+// Otherwise fall back to dotfilesDir.
+func resolveAIDir(dotfilesDir string) string {
+	cwd, _ := os.Getwd()
+	if cwd == "" {
+		return dotfilesDir
+	}
+	// Check if cwd has AI-relevant content
+	matches, _ := filepath.Glob(filepath.Join(cwd, "mcp-config*.json"))
+	if len(matches) > 0 {
+		return cwd
+	}
+	if entries, err := os.ReadDir(cwd); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				skill := filepath.Join(cwd, e.Name(), "SKILL.md")
+				if _, err := os.Stat(skill); err == nil {
+					return cwd
+				}
+			}
+		}
+	}
+	return dotfilesDir
+}
+
 func newShellCmd(cmd string) *exec.Cmd {
 	proc := exec.Command("bash", "-c", cmd)
 	proc.Stdout = os.Stdout
@@ -922,16 +948,20 @@ func main() {
 			fmt.Fprintln(os.Stderr, "usage: punch ai <lock|verify|list|pin> [server...]")
 			os.Exit(1)
 		}
+		// AI commands work on the cwd if it contains MCP configs or skills,
+		// falling back to dotfilesDir. This lets you run `punch ai pin` from
+		// an AI config repo without needing --dotfiles.
+		aiDir := resolveAIDir(dotfilesDir)
 		subcmd := positional[1]
 		switch subcmd {
 		case "lock":
-			err = cmdAILock(dotfilesDir)
+			err = cmdAILock(aiDir)
 		case "verify":
-			err = cmdAIVerify(dotfilesDir)
+			err = cmdAIVerify(aiDir)
 		case "list", "ls":
-			err = cmdAIList(dotfilesDir)
+			err = cmdAIList(aiDir)
 		case "pin":
-			err = cmdAIPin(dotfilesDir, positional[2:])
+			err = cmdAIPin(aiDir, positional[2:])
 		default:
 			fmt.Fprintf(os.Stderr, "unknown ai subcommand: %s\n", subcmd)
 			os.Exit(1)

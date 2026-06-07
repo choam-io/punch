@@ -97,17 +97,36 @@ func classifyMCPServer(name string, raw json.RawMessage) (serverType, pkg, versi
 
 // findMCPConfigs locates mcp-config*.json files in dotfiles and ~/.copilot/.
 func findMCPConfigs(dotfilesDir string) []string {
+	seen := make(map[string]bool) // resolved real paths for dedup
 	var configs []string
+
+	addIfNew := func(path string) {
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			real = path
+		}
+		abs, err := filepath.Abs(real)
+		if err != nil {
+			abs = real
+		}
+		if seen[abs] {
+			return
+		}
+		seen[abs] = true
+		configs = append(configs, path)
+	}
 
 	// Check dotfiles root
 	primary := filepath.Join(dotfilesDir, "mcp-config.json")
 	if _, err := os.Stat(primary); err == nil {
-		configs = append(configs, primary)
+		addIfNew(primary)
 	}
 
 	// Glob for variants (mcp-config.work.json, mcp-config.personal.json, etc.)
 	matches, _ := filepath.Glob(filepath.Join(dotfilesDir, "mcp-config.*.json"))
-	configs = append(configs, matches...)
+	for _, m := range matches {
+		addIfNew(m)
+	}
 
 	// Recursively search in subdirectories (plugins, ai/, etc.)
 	_ = filepath.WalkDir(dotfilesDir, func(path string, d fs.DirEntry, err error) error {
@@ -122,23 +141,17 @@ func findMCPConfigs(dotfilesDir string) []string {
 			return nil
 		}
 		if strings.HasPrefix(d.Name(), "mcp-config") && strings.HasSuffix(d.Name(), ".json") {
-			// Avoid duplicates from the glob above
-			for _, existing := range configs {
-				if existing == path {
-					return nil
-				}
-			}
-			configs = append(configs, path)
+			addIfNew(path)
 		}
 		return nil
 	})
 
-	// Check ~/.copilot/
+	// Check ~/.copilot/ (may be a symlink into dotfilesDir — dedup handles it)
 	home, _ := os.UserHomeDir()
 	if home != "" {
 		copilotConfig := filepath.Join(home, ".copilot", "mcp-config.json")
 		if _, err := os.Stat(copilotConfig); err == nil {
-			configs = append(configs, copilotConfig)
+			addIfNew(copilotConfig)
 		}
 	}
 
