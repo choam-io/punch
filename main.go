@@ -824,6 +824,10 @@ Commands:
   deps verify                  Check installed deps match lockfile
   deps update [name...]        Alias for deps lock (re-resolve to latest)
   deps list                    Show deps and their lock status
+  ai lock                      Scan skills + MCP configs → ai.lock.yaml
+  ai verify                    Check installed state matches ai lockfile
+  ai list                      Show tracked skills + MCP servers with status
+  ai pin [server...]           Pin @latest npm versions to exact in MCP config
 
 Flags:
   --dotfiles <path>   Dotfiles directory (default: auto-detect from cwd)
@@ -911,6 +915,25 @@ func main() {
 			err = cmdDepsList(dotfilesDir)
 		default:
 			fmt.Fprintf(os.Stderr, "unknown deps subcommand: %s\n", subcmd)
+			os.Exit(1)
+		}
+	case "ai":
+		if len(positional) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: punch ai <lock|verify|list|pin> [server...]")
+			os.Exit(1)
+		}
+		subcmd := positional[1]
+		switch subcmd {
+		case "lock":
+			err = cmdAILock(dotfilesDir)
+		case "verify":
+			err = cmdAIVerify(dotfilesDir)
+		case "list", "ls":
+			err = cmdAIList(dotfilesDir)
+		case "pin":
+			err = cmdAIPin(dotfilesDir, positional[2:])
+		default:
+			fmt.Fprintf(os.Stderr, "unknown ai subcommand: %s\n", subcmd)
 			os.Exit(1)
 		}
 	case "clean":
